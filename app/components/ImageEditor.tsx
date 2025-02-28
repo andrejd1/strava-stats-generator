@@ -33,160 +33,39 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     dragOffsetX: 0,
     dragOffsetY: 0
   });
-  
+
   // For vertical crop position (0-100%, default is center at 50%)
   const [verticalCropPosition, setVerticalCropPosition] = useState<number>(50);
   const [position, setPosition] = useState<Position>('top-left');
   const [backgroundColor, setBackgroundColor] = useState('rgba(0, 0, 0, 0.5)');
   const [textColor, setTextColor] = useState('#ffffff');
   const [fontSizePercent, setFontSizePercent] = useState(3); // 5% of image height as default
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedStats, setSelectedStats] = useState<string[]>([
     'name', 'start_date', 'distance', 'moving_time', 'average_pace'
   ]);
-  
+
   const handleStatsChange = (stats: string[]) => {
     // Just update the state - the useEffect will handle rendering
     setSelectedStats([...stats]);
   };
-  
-  // This useEffect specifically watches for changes to selectedStats
-  useEffect(() => {
-    if (canvasRef.current && activity && selectedImage) {
-      // Use requestAnimationFrame to ensure DOM updates are processed first
-      requestAnimationFrame(() => {
-        renderCanvas();
-      });
-    }
-  }, [selectedStats, activity, selectedImage]);
-  
-  // This useEffect watches for changes to verticalCropPosition
-  useEffect(() => {
-    if (canvasRef.current && activity && selectedImage && aspectRatio !== 'original') {
-      requestAnimationFrame(() => {
-        renderCanvas();
-      });
-    }
-  }, [verticalCropPosition, aspectRatio, activity, selectedImage]);
-  
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  
-  useEffect(() => {
-    // Only run in the browser
-    if (typeof window === 'undefined') return;
-    
-    if (selectedImage && activity) {
-      // Use requestAnimationFrame to ensure we're in a clean browser animation frame
-      requestAnimationFrame(() => {
-        renderCanvas();
-      });
-    }
-  }, [selectedImage, activity, aspectRatio, statsPosition, backgroundColor, textColor, fontSizePercent, position]);
-  
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file");
-      return;
-    }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        setError("Error processing image");
-        return;
-      }
-      
-      setSelectedImage(result);
-      setError(null);
-      
-      // Create a new image for dimensions
-      const img = new Image();
-      img.onload = () => {
-        imageRef.current = img;
-        renderCanvas();
-      };
-      img.src = result;
-    };
-    reader.onerror = () => {
-      setError("Error reading file");
-    };
-    reader.readAsDataURL(file);
-  };
-  
-  const handleAspectRatioChange = (ratio: AspectRatio) => {
-    setAspectRatio(ratio);
-    
-    // Reset vertical crop position to center when changing aspect ratio
-    setVerticalCropPosition(50);
-  };
-  
-  const handlePositionChange = (newPosition: Position) => {
-    setPosition(newPosition);
-    
-    if (!canvasRef.current || !imageRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const padding = 100; // Keep padding consistent
-    
-    // Calculate fontSize based on canvas height
-    const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
-    
-    // Calculate the minimum height for stats display
-    const lineHeight = fontSize + 10;
-    const headerHeight = fontSize + 14;
-    const numStats = selectedStats.length;
-    const minHeight = padding * 2 + headerHeight + (numStats * lineHeight);
-    
-    // Get the current width
-    const statsWidth = statsPosition.width;
-    
-    // Set position based on the selection
-    switch (newPosition) {
-      case 'top-center':
-        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: padding }));
-        break;
-      case 'top-left':
-        setStatsPosition(prev => ({ ...prev, x: padding, y: padding }));
-        break;
-      case 'top-right':
-        setStatsPosition(prev => ({ ...prev, x: canvas.width - statsWidth - padding, y: padding }));
-        break;
-      case 'center':
-        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: (canvas.height - minHeight) / 2 }));
-        break;
-      case 'bottom-left':
-        setStatsPosition(prev => ({ ...prev, x: padding, y: canvas.height - minHeight - padding }));
-        break;
-        case 'bottom-right':
-        setStatsPosition(prev => ({ ...prev, x: canvas.width - statsWidth - padding, y: canvas.height - minHeight - padding }));
-        break;
-      case 'bottom-center':
-        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: canvas.height - minHeight - padding / 2 }));
-        break;
-      }
-  };
-  
-  const renderCanvas = () => {
+  const renderCanvas = useCallback(() => {
     // Only render in browser context
     if (typeof window === 'undefined') return;
-    
+
     if (!selectedImage || !activity || !canvasRef.current || !imageRef.current) return;
-    
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       console.error('Could not get canvas 2D context');
       return;
     }
-    
+
     // Define available stats in the order they should appear
     const availableStats = [
       { key: 'name', label: 'Activity Name' },
@@ -201,39 +80,39 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       { key: 'max_speed', label: 'Max Speed (km/h)' },
       { key: 'total_elevation_gain', label: 'Elevation Gain (m)' },
     ];
-    
+
     // Add optional stats if they exist in the activity
     if (activity.average_heartrate) {
       availableStats.push({ key: 'average_heartrate', label: 'Avg Heart Rate (bpm)' });
     }
-    
+
     if (activity.max_heartrate) {
       availableStats.push({ key: 'max_heartrate', label: 'Max Heart Rate (bpm)' });
     }
-    
+
     if (activity.calories) {
       availableStats.push({ key: 'calories', label: 'Calories' });
     }
-    
+
     if (activity.suffer_score) {
       availableStats.push({ key: 'suffer_score', label: 'Suffer Score' });
     }
-    
+
     const img = imageRef.current;
-    
+
     // Calculate dimensions based on aspect ratio
-    let width = img.width;
+    const width = img.width;
     let height = img.height;
-    let sourceX = 0;
+    const sourceX = 0;
     let sourceY = 0;
-    
+
     if (aspectRatio !== 'original') {
       const parts = aspectRatio.split(':');
       const w = Number(parts[0]) || 1;
       const h = Number(parts[1]) || 1;
       const targetRatio = w / h;
       const currentRatio = width / height;
-      
+
       if (currentRatio > targetRatio) {
         // Image is wider than target ratio, so we need to crop width
         // In this case we'll keep full width and adjust canvas dimensions
@@ -242,11 +121,11 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         // Image is taller than target ratio, so we need to crop height
         // Calculate the height that needs to be cropped
         const targetHeight = width / targetRatio;
-        
+
         if (targetHeight < img.height) {
           // Set canvas height to the target ratio height
           height = targetHeight;
-          
+
           // Calculate vertical crop based on user's verticalCropPosition (0-100%)
           // 0% means crop from the top, 100% means crop from the bottom, 50% is centered
           const maxOffset = img.height - targetHeight;
@@ -254,43 +133,43 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         }
       }
     }
-    
+
     // Set canvas dimensions
     canvas.width = width;
     canvas.height = height;
-    
+
     // Draw the image with the calculated crop
     ctx.drawImage(
       img,
       sourceX, sourceY, width, height,
       0, 0, width, height
     );
-    
+
     // Calculate fontSize based on canvas height
     const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
-    
+
     // Calculate overlay height based on number of stats
     const lineHeight = fontSize + 10;
     const padding = 100; // Increased padding for more space
     const headerHeight = fontSize + 14;
     const overlayHeight = padding * 2 + headerHeight + (selectedStats.length * lineHeight);
-    
+
     // Calculate the width needed for stats based on the text
     let maxTextWidth = 0;
-    
+
     // Calculate width for activity name if included
     if (selectedStats.includes('name')) {
       ctx.font = `bold ${fontSize + 4}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       const titleWidth = ctx.measureText(activity.name).width + (padding * 2);
       maxTextWidth = Math.max(maxTextWidth, titleWidth);
     }
-    
+
     // Calculate width for other stats
     ctx.font = `${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
-    
+
     // Determine labels and values for each stat
     const getStatLabel = (key: string): string => {
-      switch(key) {
+      switch (key) {
         case 'start_date': return 'Date ';
         case 'distance': return 'Distance ';
         case 'moving_time': return 'Moving Time ';
@@ -308,11 +187,11 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         default: return key;
       }
     };
-    
+
     const getStatValue = (key: string): string => {
       if (!activity) return '';
-      
-      switch(key) {
+
+      switch (key) {
         case 'start_date': {
           const date = new Date(activity.start_date_local);
           const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -334,7 +213,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         default: return '';
       }
     };
-    
+
     // Measure width of each stat text
     selectedStats.filter(stat => stat !== 'name').forEach(stat => {
       const label = getStatLabel(stat);
@@ -343,18 +222,18 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       const textWidth = ctx.measureText(statText).width + (padding * 2);
       maxTextWidth = Math.max(maxTextWidth, textWidth);
     });
-    
+
     // Add some extra padding
     maxTextWidth += 20;
-    
+
     // Update stats position width
     if (Math.abs(maxTextWidth - statsPosition.width) > 50) {
       setStatsPosition(prev => ({ ...prev, width: maxTextWidth }));
     }
-    
+
     // Draw stats overlay with optional rounded corners
     ctx.fillStyle = backgroundColor;
-    
+
     if (statsPosition.borderRadius > 0) {
       // Draw rounded rectangle
       const radius = Math.min(
@@ -362,7 +241,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         statsPosition.width / 2,
         overlayHeight / 2
       );
-      
+
       ctx.beginPath();
       ctx.moveTo(statsPosition.x + radius, statsPosition.y);
       ctx.lineTo(statsPosition.x + statsPosition.width - radius, statsPosition.y);
@@ -379,91 +258,208 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       // Draw regular rectangle
       ctx.fillRect(statsPosition.x, statsPosition.y, statsPosition.width, overlayHeight);
     }
-    
+
     // Add stats text
     ctx.fillStyle = textColor;
     let yPos = statsPosition.y + padding + fontSize + 4;
-    
+
     // Only show title if name is in selected stats
     if (selectedStats.includes('name')) {
       ctx.textAlign = 'left';
       ctx.font = `bold ${fontSize + 4}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       ctx.fillText(activity.name, statsPosition.x + padding, yPos);
-      
+
       yPos += lineHeight + 15; // More space after title
     }
-    
-    // Create a table-like layout for stats
-    const labelWidth = 150; // Width reserved for the label column
-    
+
     // Get the ordered list of stats (all available stats in their original order)
     const orderedStats = availableStats.map(stat => stat.key);
-    
+
     // Filter to only include selected stats, preserving the original order
     const orderedSelectedStats = orderedStats
-    .filter(stat => selectedStats.includes(stat))
-    .filter(stat => stat !== 'name'); // Exclude name from the list
-    
+      .filter(stat => selectedStats.includes(stat))
+      .filter(stat => stat !== 'name'); // Exclude name from the list
+
     // Draw each stat in the preserved order
     orderedSelectedStats.forEach(stat => {
       const label = getStatLabel(stat);
       const value = getStatValue(stat);
-      
+
       // Draw label (left-aligned)
       ctx.textAlign = 'left';
       ctx.font = `${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       ctx.fillText(label, statsPosition.x + padding, yPos);
-      
+
       // Draw value (right-aligned)
       ctx.textAlign = 'right';
       ctx.font = `bold ${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       ctx.fillText(value, statsPosition.x + statsPosition.width - padding, yPos);
-      
+
       yPos += lineHeight;
     });
-    
+
     // Reset text alignment for future text
     ctx.textAlign = 'left';
+  }, [selectedImage, activity, canvasRef, imageRef, aspectRatio, verticalCropPosition, fontSizePercent, selectedStats, statsPosition, backgroundColor, textColor]);
+
+  // This useEffect specifically watches for changes to selectedStats
+  useEffect(() => {
+    if (canvasRef.current && activity && selectedImage) {
+      // Use requestAnimationFrame to ensure DOM updates are processed first
+      requestAnimationFrame(() => {
+        renderCanvas();
+      });
+    }
+  }, [selectedStats, activity, selectedImage, renderCanvas]);
+
+  // This useEffect watches for changes to verticalCropPosition
+  useEffect(() => {
+    if (canvasRef.current && activity && selectedImage && aspectRatio !== 'original') {
+      requestAnimationFrame(() => {
+        renderCanvas();
+      });
+    }
+  }, [verticalCropPosition, aspectRatio, activity, selectedImage, renderCanvas]);
+
+  useEffect(() => {
+    // Only run in the browser
+    if (typeof window === 'undefined') return;
+
+    if (selectedImage && activity) {
+      // Use requestAnimationFrame to ensure we're in a clean browser animation frame
+      requestAnimationFrame(() => {
+        renderCanvas();
+      });
+    }
+  }, [selectedImage, activity, aspectRatio, statsPosition, backgroundColor, textColor, fontSizePercent, position, renderCanvas]);
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload an image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        setError("Error processing image");
+        return;
+      }
+
+      setSelectedImage(result);
+      setError(null);
+
+      // Create a new image for dimensions
+      const img = new Image();
+      img.onload = () => {
+        imageRef.current = img;
+        renderCanvas();
+      };
+      img.src = result;
+    };
+    reader.onerror = () => {
+      setError("Error reading file");
+    };
+    reader.readAsDataURL(file);
   };
-  
+
+  const handleAspectRatioChange = (ratio: AspectRatio) => {
+    setAspectRatio(ratio);
+
+    // Reset vertical crop position to center when changing aspect ratio
+    setVerticalCropPosition(50);
+  };
+
+  const handlePositionChange = (newPosition: Position) => {
+    setPosition(newPosition);
+
+    if (!canvasRef.current || !imageRef.current) return;
+
+    const canvas = canvasRef.current;
+    const padding = 100; // Keep padding consistent
+
+    // Calculate fontSize based on canvas height
+    const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
+
+    // Calculate the minimum height for stats display
+    const lineHeight = fontSize + 10;
+    const headerHeight = fontSize + 14;
+    const numStats = selectedStats.length;
+    const minHeight = padding * 2 + headerHeight + (numStats * lineHeight);
+
+    // Get the current width
+    const statsWidth = statsPosition.width;
+
+    // Set position based on the selection
+    switch (newPosition) {
+      case 'top-center':
+        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: padding }));
+        break;
+      case 'top-left':
+        setStatsPosition(prev => ({ ...prev, x: padding, y: padding }));
+        break;
+      case 'top-right':
+        setStatsPosition(prev => ({ ...prev, x: canvas.width - statsWidth - padding, y: padding }));
+        break;
+      case 'center':
+        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: (canvas.height - minHeight) / 2 }));
+        break;
+      case 'bottom-left':
+        setStatsPosition(prev => ({ ...prev, x: padding, y: canvas.height - minHeight - padding }));
+        break;
+      case 'bottom-right':
+        setStatsPosition(prev => ({ ...prev, x: canvas.width - statsWidth - padding, y: canvas.height - minHeight - padding }));
+        break;
+      case 'bottom-center':
+        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: canvas.height - minHeight - padding / 2 }));
+        break;
+    }
+  };
+
   const startDragging = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
-    
+
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     // Calculate fontSize based on canvas height
     const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
-    
+
     // Calculate the minimum height for stats display
     const lineHeight = fontSize + 10;
     const padding = 30; // Keep padding consistent
     const headerHeight = fontSize + 14;
     const numStats = selectedStats.length;
     const minHeight = padding * 2 + headerHeight + (numStats * lineHeight);
-    
+
     // Check if click is within the stats box
     if (
-      x >= statsPosition.x && 
-      x <= statsPosition.x + statsPosition.width && 
-      y >= statsPosition.y && 
+      x >= statsPosition.x &&
+      x <= statsPosition.x + statsPosition.width &&
+      y >= statsPosition.y &&
       y <= statsPosition.y + minHeight
     ) {
       // Calculate the offset between mouse position and box's top-left corner
       const offsetX = x - statsPosition.x;
       const offsetY = y - statsPosition.y;
-      
-      setStatsPosition(prev => ({ 
-        ...prev, 
+
+      setStatsPosition(prev => ({
+        ...prev,
         isDragging: true,
         dragOffsetX: offsetX,
         dragOffsetY: offsetY
       }));
     }
   };
-  
+
   const stopDragging = () => {
     // Only update if actually dragging to avoid unnecessary renders
     if (statsPosition.isDragging) {
@@ -473,35 +469,35 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       });
     }
   };
-  
+
   const dragStats = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!statsPosition.isDragging || !canvasRef.current) return;
-    
+
     e.preventDefault(); // Prevent any browser handling
-    
+
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     // Calculate fontSize based on canvas height
     const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
-    
+
     // Calculate the minimum height for stats display
     const lineHeight = fontSize + 10;
     const padding = 30; // Keep padding consistent
     const headerHeight = fontSize + 14;
     const numStats = selectedStats.length;
     const minHeight = padding * 2 + headerHeight + (numStats * lineHeight);
-    
+
     // Ensure stats box stays within canvas boundaries
     const maxX = Math.max(0, canvas.width - statsPosition.width);
     const maxY = Math.max(0, canvas.height - minHeight);
-    
+
     // Account for the initial click offset within the box
     const newX = Math.max(0, Math.min(maxX, x - statsPosition.dragOffsetX));
     const newY = Math.max(0, Math.min(maxY, y - statsPosition.dragOffsetY));
-    
+
     // Use direct state update to avoid re-renders
     setStatsPosition({
       ...statsPosition,
@@ -509,7 +505,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       y: newY
     });
   };
-  
+
   const downloadImage = () => {
     if (!canvasRef.current) return;
     const link = document.createElement("a");
@@ -517,7 +513,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     link.href = canvasRef.current.toDataURL("image/png");
     link.click();
   };
-  
+
   return (
     <div className="space-y-6" suppressHydrationWarning>
       <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
@@ -538,7 +534,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
             />
             {error && <div className="text-red-500 text-sm">{error}</div>}
           </div>
-          
+
           <div className="border border-gray-300 rounded-lg relative">
             <canvas
               ref={canvasRef}
@@ -556,7 +552,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
               </div>
             )}
           </div>
-          
+
           {selectedImage && activity && (
             <button
               onClick={downloadImage}
@@ -566,7 +562,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
             </button>
           )}
         </div>
-        
+
         {/* Right side: Editing Controls */}
         <div className="w-full md:w-1/3 space-y-6">
           {activity ? (
@@ -578,7 +574,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                   {activity.type} • {activity.start_date} • {activity.distance}km
                 </p>
               </div>
-              
+
               {selectedImage && (
                 <>
                   <div className="space-y-3">
@@ -588,17 +584,16 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         <button
                           key={ratio}
                           onClick={() => handleAspectRatioChange(ratio)}
-                          className={`px-3 py-1 text-sm rounded-full ${
-                            aspectRatio === ratio
-                              ? 'bg-[#FC4C02] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
+                          className={`px-3 py-1 text-sm rounded-full ${aspectRatio === ratio
+                            ? 'bg-[#FC4C02] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
                         >
                           {ratio}
                         </button>
                       ))}
                     </div>
-                    
+
                     {aspectRatio !== 'original' && (
                       <div className="space-y-2 mt-3">
                         <label className="block text-sm">Vertical Position</label>
@@ -621,7 +616,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="space-y-3">
                     <h3 className="font-bold border-l-4 border-[#FC4C02] pl-2">Stats Position</h3>
                     <div className="grid grid-cols-3 gap-2">
@@ -629,11 +624,10 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         <button
                           key={pos}
                           onClick={() => handlePositionChange(pos)}
-                          className={`px-3 py-1 text-sm rounded-lg ${
-                            position === pos
-                              ? 'bg-[#FC4C02] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
+                          className={`px-3 py-1 text-sm rounded-lg ${position === pos
+                            ? 'bg-[#FC4C02] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
                         >
                           {pos.replace('-', ' ')}
                         </button>
@@ -641,7 +635,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                     </div>
                     <p className="text-xs text-gray-500">Tip: You can also drag the stats box on the image</p>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <h3 className="font-bold border-l-4 border-[#FC4C02] pl-2">Appearance</h3>
                     <div className="space-y-2">
@@ -659,7 +653,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         className="w-full"
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <label className="block text-sm">Text Color</label>
                       <input
@@ -669,7 +663,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         className="w-full h-10 cursor-pointer rounded border border-gray-300"
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <label className="block text-sm">Font Size ({fontSizePercent}% of image height)</label>
                       <input
@@ -681,7 +675,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         className="w-full"
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <label className="block text-sm">Corner Radius</label>
                       <input
@@ -689,21 +683,21 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         min="0"
                         max="100"
                         value={statsPosition.borderRadius}
-                        onChange={(e) => setStatsPosition(prev => ({ 
-                          ...prev, 
-                          borderRadius: parseInt(e.target.value) 
+                        onChange={(e) => setStatsPosition(prev => ({
+                          ...prev,
+                          borderRadius: parseInt(e.target.value)
                         }))}
                         className="w-full"
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <h3 className="font-bold border-l-4 border-[#FC4C02] pl-2">Stats to Display</h3>
-                    <StatsSelector 
+                    <StatsSelector
                       activity={activity}
                       selectedStats={selectedStats}
-                      onStatsChange={handleStatsChange} 
+                      onStatsChange={handleStatsChange}
                     />
                   </div>
                 </>

@@ -24,6 +24,8 @@ export async function GET(
       const activity = await getActivity(accessToken, activityId);
       return NextResponse.json({ activity });
     } catch (error) {
+      console.error('Error fetching activity with access token:', error);
+      
       // If the token is expired, try to refresh it
       const tokenData = await refreshToken(refreshTokenCookie);
       

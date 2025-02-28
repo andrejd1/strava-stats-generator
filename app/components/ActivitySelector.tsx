@@ -17,38 +17,37 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
 
   useEffect(() => {
     if (isLoggedIn) {
+      const fetchActivities = async () => {
+        if (!isLoggedIn) return;
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+          const response = await fetch(`/api/strava/activities?page=${page}&perPage=10`);
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch activities');
+          }
+
+          const data = await response.json();
+
+          if (data.activities.length === 0) {
+            setHasMore(false);
+          } else {
+            setActivities(prevActivities =>
+              page === 1 ? data.activities : [...prevActivities, ...data.activities]
+            );
+          }
+        } catch (error) {
+          setError(error instanceof Error ? error.message : 'Error fetching activities');
+        } finally {
+          setIsLoading(false);
+        }
+      };
       fetchActivities();
     }
   }, [isLoggedIn, page]);
-
-  const fetchActivities = async () => {
-    if (!isLoggedIn) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch(`/api/strava/activities?page=${page}&perPage=10`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch activities');
-      }
-      
-      const data = await response.json();
-      
-      if (data.activities.length === 0) {
-        setHasMore(false);
-      } else {
-        setActivities(prevActivities => 
-          page === 1 ? data.activities : [...prevActivities, ...data.activities]
-        );
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Error fetching activities');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleLoadMore = () => {
     setPage(prevPage => prevPage + 1);
@@ -65,15 +64,15 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Your Strava Activities</h2>
-      
+
       {error && <div className="text-red-500">{error}</div>}
-      
+
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {activities.length === 0 && !isLoading ? (
           <p className="text-gray-500">No activities found.</p>
         ) : (
           activities.map(activity => (
-            <div 
+            <div
               key={activity.id}
               onClick={() => onSelect(activity)}
               className="text-black bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-50 transition-colors"
@@ -85,14 +84,14 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
             </div>
           ))
         )}
-        
+
         {isLoading && (
           <div className="flex justify-center p-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#FC4C02]"></div>
           </div>
         )}
       </div>
-      
+
       {hasMore && activities.length > 0 && (
         <button
           onClick={handleLoadMore}

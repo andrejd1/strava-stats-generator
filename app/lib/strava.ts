@@ -1,16 +1,14 @@
-import { redirect } from 'next/navigation';
-
 // Helper function for pace formatting
 function formatPace(speedInMetersPerSecond: number): string {
   if (!speedInMetersPerSecond || speedInMetersPerSecond === 0) return "-";
-  
+
   // Convert m/s to minutes per kilometer
   const paceInMinPerKm = 1000 / (speedInMetersPerSecond * 60);
-  
+
   // Extract minutes and seconds
   const minutes = Math.floor(paceInMinPerKm);
   const seconds = Math.round((paceInMinPerKm - minutes) * 60);
-  
+
   // Format as MM:SS
   return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
 }
@@ -55,18 +53,18 @@ export async function getStravaAuthUrl(origin?: string) {
   if (!clientId) {
     throw new Error('Missing Strava client ID');
   }
-  
+
   // Redirect URI should be your callback URL
   const redirectUri = `${origin || ''}/api/auth/callback`;
   const scope = 'read,activity:read';
-  
+
   return `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
 }
 
 export async function exchangeToken(code: string): Promise<StravaTokenResponse> {
   const clientId = process.env.STRAVA_ID;
   const clientSecret = process.env.CLIENT_SECRET;
-  
+
   if (!clientId || !clientSecret) {
     throw new Error('Missing Strava credentials');
   }
@@ -94,7 +92,7 @@ export async function exchangeToken(code: string): Promise<StravaTokenResponse> 
 export async function refreshToken(refreshToken: string): Promise<StravaTokenResponse> {
   const clientId = process.env.STRAVA_ID;
   const clientSecret = process.env.CLIENT_SECRET;
-  
+
   if (!clientId || !clientSecret) {
     throw new Error('Missing Strava credentials');
   }
