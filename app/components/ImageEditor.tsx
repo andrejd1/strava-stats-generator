@@ -44,6 +44,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
   const [selectedStats, setSelectedStats] = useState<string[]>([
     'name', 'start_date', 'distance', 'moving_time', 'average_pace'
   ]);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleStatsChange = (stats: string[]) => {
     // Just update the state - the useEffect will handle rendering
@@ -508,10 +509,12 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
 
   const downloadImage = () => {
     if (!canvasRef.current) return;
+    setIsDownloading(true);
     const link = document.createElement("a");
-    link.download = `strava-overlay-${activity?.name}-${new Date().getTime()}.png`;
-    link.href = canvasRef.current.toDataURL("image/png");
+    link.download = `strava-overlay-${activity?.name}-${new Date().getTime()}.jpg`;
+    link.href = canvasRef.current.toDataURL("image/jpeg");
     link.click();
+    setIsDownloading(false);
   };
 
   return (
@@ -520,7 +523,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         {/* Left side: Canvas and Image Upload */}
         <div className="w-full md:w-2/3 space-y-4">
           <div className="space-y-2">
-            <label className="block text-xl font-medium text-white">Upload Image</label>
+            <label className="block text- font-medium text-white">Upload Image</label>
             {activity ? <input
               type="file"
               accept="image/*"
@@ -557,9 +560,10 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
           {selectedImage && activity && (
             <button
               onClick={downloadImage}
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 w-full"
+              className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 w-full ${isDownloading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isDownloading}
             >
-              Download Image
+              {isDownloading ? 'Downloading...' : 'Download Image'}
             </button>
           )}
         </div>
