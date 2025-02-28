@@ -3,21 +3,21 @@ import { getActivity, refreshToken } from '@/app/lib/strava';
 
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const activityId = parseInt(context.params.id);
-  
+  const activityId = parseInt((await params).id);
+
   if (isNaN(activityId)) {
     return NextResponse.json({ error: 'Invalid activity ID' }, { status: 400 });
   }
-  
+
   const accessToken = request.cookies.get('strava_access_token')?.value;
   const refreshTokenCookie = request.cookies.get('strava_refresh_token')?.value;
-  
+
   if (!accessToken || !refreshTokenCookie) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  
+
   try {
     // Try to use the current access token
     try {
@@ -25,13 +25,13 @@ export async function GET(
       return NextResponse.json({ activity });
     } catch (error) {
       console.error('Error fetching activity with access token:', error);
-      
+
       // If the token is expired, try to refresh it
       const tokenData = await refreshToken(refreshTokenCookie);
-      
+
       // Update cookies with new tokens
       const response = NextResponse.json({});
-      
+
       response.cookies.set({
         name: 'strava_access_token',
         value: tokenData.access_token,
@@ -40,7 +40,7 @@ export async function GET(
         expires: new Date(tokenData.expires_at * 1000),
         path: '/',
       });
-      
+
       response.cookies.set({
         name: 'strava_refresh_token',
         value: tokenData.refresh_token,
@@ -49,7 +49,7 @@ export async function GET(
         expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         path: '/',
       });
-      
+
       // Try again with the new access token
       const activity = await getActivity(tokenData.access_token, activityId);
       return NextResponse.json({ activity });
