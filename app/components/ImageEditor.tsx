@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { StravaActivity } from '@/app/lib/strava';
 import StatsSelector from './StatsSelector';
 
 interface ImageEditorProps {
   activity: StravaActivity | null;
+  onImageEditorRef?: (ref: { loadImageFromUrl: (url: string) => void }) => void;
 }
 
 type AspectRatio = '16:9' | '4:3' | '1:1' | 'original';
@@ -19,9 +20,10 @@ interface StatsPosition {
   borderRadius: number;
   dragOffsetX: number;
   dragOffsetY: number;
+  hasSetWidth?: boolean;
 }
 
-export default function ImageEditor({ activity }: ImageEditorProps) {
+export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('original');
   const [statsPosition, setStatsPosition] = useState<StatsPosition>({
@@ -158,7 +160,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
 
     // Calculate overlay height based on number of stats
     const lineHeight = fontSize + 10;
-    const padding = 100; // Increased padding for more space
+    const padding = 30; // Increased padding for more space
     const headerHeight = fontSize + 14;
     const overlayHeight = padding * 2 + headerHeight + (selectedStats.length * lineHeight);
 
@@ -234,9 +236,14 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     // Add some extra padding
     maxTextWidth += 20;
 
-    // Update stats position width
-    if (Math.abs(maxTextWidth - statsPosition.width) > 50) {
-      setStatsPosition(prev => ({ ...prev, width: maxTextWidth }));
+    // Only update width when rendering initially or when there's a significant change
+    // to prevent render loops
+    if (!statsPosition.hasSetWidth || Math.abs(maxTextWidth - statsPosition.width) > 100) {
+      setStatsPosition(prev => ({
+        ...prev,
+        width: maxTextWidth,
+        hasSetWidth: true
+      }));
     }
 
     // Draw stats overlay with optional rounded corners
@@ -310,36 +317,71 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     ctx.textAlign = 'left';
   }, [selectedImage, activity, canvasRef, imageRef, aspectRatio, verticalCropPosition, fontSizePercent, selectedStats, statsPosition, backgroundColor, textColor]);
 
-  // This useEffect specifically watches for changes to selectedStats
+
+
+  // Reset selectedImage when activity changes
   useEffect(() => {
-    if (canvasRef.current && activity && selectedImage) {
-      // Use requestAnimationFrame to ensure DOM updates are processed first
+    setSelectedImage(null);
+  }, [activity]);
+
+
+  // Use stable ref for the image loading function to prevent re-renders
+  const loadImageFromUrlRef = useRef((url: string) => {
+    if (!url) {
+      console.error("loadImageFromUrl called with undefined or empty URL");
+      return;
+    }
+    
+    // Create a new image and load it
+    const img = new Image();
+
+    img.onload = () => {
+      imageRef.current = img;
+      setSelectedImage(url);
+    };
+    img.onerror = (e) => {
+      console.error("Failed to load image from URL:", url, e);
+    };
+    img.src = url;
+  });
+
+  // Create a stable API object with useMemo
+  const imageEditorApi = useMemo(() => ({
+    loadImageFromUrl: loadImageFromUrlRef.current
+  }), []);
+
+  // Register the stable API object
+  useEffect(() => {
+    if (onImageEditorRef) {
+      onImageEditorRef(imageEditorApi);
+    }
+  }, [onImageEditorRef, imageEditorApi]);
+
+  // Single combined useEffect for rendering canvas when any visual parameters change
+  useEffect(() => {
+    if (typeof window === 'undefined' || !canvasRef.current || !activity || !selectedImage) return;
+
+    // Use a debounced render to prevent too many rapid re-renders
+    const timer = setTimeout(() => {
       requestAnimationFrame(() => {
         renderCanvas();
       });
-    }
-  }, [selectedStats, activity, selectedImage, renderCanvas]);
+    }, 50); // Small debounce to prevent render loops
 
-  // This useEffect watches for changes to verticalCropPosition
-  useEffect(() => {
-    if (canvasRef.current && activity && selectedImage && aspectRatio !== 'original') {
-      requestAnimationFrame(() => {
-        renderCanvas();
-      });
-    }
-  }, [verticalCropPosition, aspectRatio, activity, selectedImage, renderCanvas]);
-
-  useEffect(() => {
-    // Only run in the browser
-    if (typeof window === 'undefined') return;
-
-    if (selectedImage && activity) {
-      // Use requestAnimationFrame to ensure we're in a clean browser animation frame
-      requestAnimationFrame(() => {
-        renderCanvas();
-      });
-    }
-  }, [selectedImage, activity, aspectRatio, statsPosition, backgroundColor, textColor, fontSizePercent, position, renderCanvas]);
+    return () => clearTimeout(timer);
+  }, [
+    selectedStats,
+    activity,
+    selectedImage,
+    verticalCropPosition,
+    aspectRatio,
+    statsPosition,
+    backgroundColor,
+    textColor,
+    fontSizePercent,
+    position,
+    renderCanvas
+  ]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -367,7 +409,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       const img = new Image();
       img.onload = () => {
         imageRef.current = img;
-        renderCanvas();
+        // renderCanvas will be called by the useEffect when selectedImage changes
       };
       img.src = result;
     };
@@ -390,7 +432,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     if (!canvasRef.current || !imageRef.current) return;
 
     const canvas = canvasRef.current;
-    const padding = 100; // Keep padding consistent
+    const padding = 30; // Keep padding consistent
 
     // Calculate fontSize based on canvas height
     const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
@@ -616,7 +658,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                           value={verticalCropPosition}
                           onChange={(e) => {
                             setVerticalCropPosition(parseInt(e.target.value));
-                            renderCanvas();
+                            // Removed direct renderCanvas call - handled by useEffect
                           }}
                           className="w-full"
                         />

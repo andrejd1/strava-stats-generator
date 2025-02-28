@@ -9,6 +9,7 @@ import { StravaActivity } from "@/app/lib/strava";
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<StravaActivity | null>(null);
+  const [imageEditorRef, setImageEditorRef] = useState<{ loadImageFromUrl: (url: string) => void } | null>(null);
   
   const handleLogin = () => {
     setIsLoggedIn(true);
@@ -21,6 +22,10 @@ export default function Home() {
   
   const handleActivitySelect = (activity: StravaActivity) => {
     setSelectedActivity(activity);
+  };
+  
+  const handleImageEditorRef = (ref: { loadImageFromUrl: (url: string) => void }) => {
+    setImageEditorRef(ref);
   };
   
   return (
@@ -36,11 +41,12 @@ export default function Home() {
             <ActivitySelector 
               onSelect={handleActivitySelect}
               isLoggedIn={isLoggedIn}
+              imageEditorRef={imageEditorRef}
             />
           </div>
           
           <div className="md:col-span-2">
-            <ImageEditor activity={selectedActivity} />
+            <ImageEditor activity={selectedActivity} onImageEditorRef={handleImageEditorRef} />
           </div>
         </div>
         

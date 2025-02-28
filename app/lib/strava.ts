@@ -13,6 +13,18 @@ function formatPace(speedInMetersPerSecond: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
 }
 
+export interface StravaPhoto {
+  id: number;
+  unique_id: string;
+  urls: {
+    100: string;
+    600: string;
+    original?: string;
+  };
+  source: number;
+  caption?: string;
+}
+
 export interface StravaActivity {
   id: number;
   name: string;
@@ -32,6 +44,12 @@ export interface StravaActivity {
   max_heartrate?: number;
   suffer_score?: number;
   calories?: number;
+  photos?: {
+    primary?: StravaPhoto;
+    count: number;
+    use_primary_photo: boolean;
+    photos?: StravaPhoto[];
+  };
 }
 
 export interface StravaTokenResponse {
@@ -172,7 +190,7 @@ export async function getActivities(accessToken: string, page = 1, perPage = 30)
 
 export async function getActivity(accessToken: string, activityId: number): Promise<StravaActivity> {
   const response = await fetch(
-    `https://www.strava.com/api/v3/activities/${activityId}`,
+    `https://www.strava.com/api/v3/activities/${activityId}?include_all_efforts=false`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -185,6 +203,35 @@ export async function getActivity(accessToken: string, activityId: number): Prom
   }
 
   const activity = await response.json();
+  
+  // Fetch photos separately to get full photos data
+  let photos = null;
+  try {
+    const photosResponse = await fetch(
+      `https://www.strava.com/api/v3/activities/${activityId}/photos?size=600&photo_sources=true`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    
+    if (photosResponse.ok) {
+      const photosData = await photosResponse.json();
+      if (photosData && photosData.length > 0) {
+        photos = {
+          count: photosData.length,
+          use_primary_photo: true,
+          primary: photosData[0],
+          photos: photosData
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch activity photos:', error);
+    // Continue without photos if there's an error
+  }
+
   return {
     id: activity.id,
     name: activity.name,
@@ -204,5 +251,6 @@ export async function getActivity(accessToken: string, activityId: number): Prom
     max_heartrate: activity.max_heartrate,
     suffer_score: activity.suffer_score,
     calories: activity.calories,
+    photos: photos || activity.photos,
   };
 }

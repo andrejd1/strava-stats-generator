@@ -6,15 +6,17 @@ import { StravaActivity } from '@/app/lib/strava';
 interface ActivitySelectorProps {
   onSelect: (activity: StravaActivity) => void;
   isLoggedIn: boolean;
+  imageEditorRef?: { loadImageFromUrl: (url: string) => void } | null;
 }
 
-export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelectorProps) {
+export default function ActivitySelector({ onSelect, isLoggedIn, imageEditorRef }: ActivitySelectorProps) {
   const [activities, setActivities] = useState<StravaActivity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState<number | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<StravaActivity | null>(null);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -58,12 +60,13 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
     setLoadingActivity(activity.id);
     try {
       const response = await fetch(`/api/strava/activities/${activity.id}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch activity details');
       }
-      
+
       const data = await response.json();
+      setSelectedActivity(data.activity);
       onSelect(data.activity);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Error fetching activity details');
@@ -94,7 +97,7 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
             <div
               key={activity.id}
               onClick={() => handleSelectActivity(activity)}
-              className="text-black bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-50 transition-colors"
+              className={`text-black bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-50 transition-colors ${selectedActivity?.id === activity.id ? 'border-2 border-[#FC4C02]' : ''}`}
             >
               <div className="font-medium">{activity.name}</div>
               <div className="text-sm text-gray-500">
@@ -115,6 +118,59 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
           </div>
         )}
       </div>
+
+      {selectedActivity?.photos?.photos && selectedActivity.photos.photos.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-lg font-medium mb-2">Activity Photos</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {selectedActivity.photos.photos.map((photo) => (
+              <div
+                key={photo.unique_id}
+                className="cursor-pointer p-1 hover:bg-gray-100 rounded-lg"
+                onClick={async () => {
+                  try {
+                    if (imageEditorRef && photo.urls[600]) {
+                      // Fetch the image data as blob directly
+                      const imageUrl = photo.urls[600];
+                      if (!imageUrl) {
+                        throw new Error("Image URL is undefined");
+                      }
+
+                      const response = await fetch(`/api/proxy/image?url=${encodeURIComponent(imageUrl)}`);
+                      if (!response.ok) {
+                        throw new Error(`Proxy request failed: ${response.status} ${response.statusText}`);
+                      }
+
+                      const blob = await response.blob();
+
+                      // Create object URL from blob
+                      const objectUrl = URL.createObjectURL(blob);
+
+                      // Use the exposed method
+                      imageEditorRef.loadImageFromUrl(objectUrl);
+                    } else if (photo.urls[600]) {
+                      // Fallback to opening in new tab
+                      window.open(photo.urls[600], '_blank');
+                    }
+                  } catch (error) {
+                    console.error("Error loading image:", error);
+                    // Fallback if proxy fails
+                    if (photo.urls[600]) {
+                      window.open(photo.urls[600], '_blank');
+                    }
+                  }
+                }}
+              >
+                <img
+                  src={`/api/proxy/image?url=${encodeURIComponent(photo.urls[600])}`}
+                  alt="Activity photo"
+                  className="w-full h-auto rounded-lg"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {hasMore && activities.length > 0 && (
         <button
