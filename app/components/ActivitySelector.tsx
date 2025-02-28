@@ -119,6 +119,16 @@ export default function ActivitySelector({ onSelect, isLoggedIn, imageEditorRef 
         )}
       </div>
 
+      {hasMore && activities.length > 0 && (
+        <button
+          onClick={handleLoadMore}
+          disabled={isLoading}
+          className="w-full py-2 text-center text-[#FC4C02] font-medium border border-[#FC4C02] rounded-lg hover:bg-[#FEF0EC] disabled:opacity-50"
+        >
+          {isLoading ? 'Loading...' : 'Load More Activities'}
+        </button>
+      )}
+
       {selectedActivity?.photos?.photos && selectedActivity.photos.photos.length > 0 && (
         <div className="mt-4">
           <h3 className="text-lg font-medium mb-2">Activity Photos</h3>
@@ -170,16 +180,6 @@ export default function ActivitySelector({ onSelect, isLoggedIn, imageEditorRef 
             ))}
           </div>
         </div>
-      )}
-
-      {hasMore && activities.length > 0 && (
-        <button
-          onClick={handleLoadMore}
-          disabled={isLoading}
-          className="w-full py-2 text-center text-[#FC4C02] font-medium border border-[#FC4C02] rounded-lg hover:bg-[#FEF0EC] disabled:opacity-50"
-        >
-          {isLoading ? 'Loading...' : 'Load More Activities'}
-        </button>
       )}
     </div>
   );
