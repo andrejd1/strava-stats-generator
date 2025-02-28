@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
   // This helps with hydration errors by suppressing during development
   experimental: {
     // Suppress hydration errors during development
-    suppressHydrationWarning: true,
   },
 };
 
