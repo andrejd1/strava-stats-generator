@@ -53,6 +53,13 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const uploadImageRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (activity && uploadImageRef.current) {
+      uploadImageRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activity]);
 
   const renderCanvas = useCallback(() => {
     // Only render in browser context
@@ -521,7 +528,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     <div className="space-y-6" suppressHydrationWarning>
       <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
         {/* Left side: Canvas and Image Upload */}
-        <div className="w-full md:w-2/3 space-y-4">
+        <div className="w-full md:w-2/3 space-y-4" ref={uploadImageRef}>
           <div className="space-y-2">
             <label className="block text-xl font-medium text-white">Upload Image</label>
             {activity ? <input
