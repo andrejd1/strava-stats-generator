@@ -14,6 +14,7 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [loadingActivity, setLoadingActivity] = useState<number | null>(null);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -53,6 +54,24 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
     setPage(prevPage => prevPage + 1);
   };
 
+  const handleSelectActivity = async (activity: StravaActivity) => {
+    setLoadingActivity(activity.id);
+    try {
+      const response = await fetch(`/api/strava/activities/${activity.id}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch activity details');
+      }
+      
+      const data = await response.json();
+      onSelect(data.activity);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Error fetching activity details');
+    } finally {
+      setLoadingActivity(null);
+    }
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="bg-gray-100 p-6 rounded-lg">
@@ -74,13 +93,18 @@ export default function ActivitySelector({ onSelect, isLoggedIn }: ActivitySelec
           activities.map(activity => (
             <div
               key={activity.id}
-              onClick={() => onSelect(activity)}
+              onClick={() => handleSelectActivity(activity)}
               className="text-black bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-50 transition-colors"
             >
               <div className="font-medium">{activity.name}</div>
               <div className="text-sm text-gray-500">
-                {activity.type} • {activity.start_date} • {activity.distance}km
+                {activity.sport_type || activity.type} • {activity.start_date} • {activity.distance}km
               </div>
+              {loadingActivity === activity.id && (
+                <div className="flex justify-center mt-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#FC4C02]"></div>
+                </div>
+              )}
             </div>
           ))
         )}
