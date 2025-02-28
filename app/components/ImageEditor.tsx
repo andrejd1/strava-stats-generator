@@ -523,7 +523,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         {/* Left side: Canvas and Image Upload */}
         <div className="w-full md:w-2/3 space-y-4">
           <div className="space-y-2">
-            <label className="block text- font-medium text-white">Upload Image</label>
+            <label className="block text-xl font-medium text-white">Upload Image</label>
             {activity ? <input
               type="file"
               accept="image/*"
