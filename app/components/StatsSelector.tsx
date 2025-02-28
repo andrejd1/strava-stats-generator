@@ -1,18 +1,15 @@
 "use client";
 
-import { useState } from 'react';
 import { StravaActivity } from '@/app/lib/strava';
 
 interface StatsSelectorProps {
   activity: StravaActivity | null;
+  selectedStats: string[];
   onStatsChange: (selectedStats: string[]) => void;
 }
 
-export default function StatsSelector({ activity, onStatsChange }: StatsSelectorProps) {
-  // We should sync this with the parent's state
-  const [selectedStats, setSelectedStats] = useState<string[]>([
-    'name', 'start_date', 'distance', 'moving_time', 'average_pace'
-  ]);
+export default function StatsSelector({ activity, selectedStats, onStatsChange }: StatsSelectorProps) {
+  // We're using the parent's state directly now, no local state needed
   
   if (!activity) {
     return null;
@@ -20,7 +17,8 @@ export default function StatsSelector({ activity, onStatsChange }: StatsSelector
   
   const availableStats = [
     { key: 'name', label: 'Activity Name', default: true },
-    { key: 'start_date', label: 'Date & Time', default: true },
+    { key: 'type', label: 'Activity Type', default: false },
+    { key: 'start_date', label: 'Date', default: true },
     { key: 'distance', label: 'Distance (km)', default: true },
     { key: 'moving_time', label: 'Moving Time (min)', default: true },
     { key: 'elapsed_time', label: 'Elapsed Time (min)', default: false },
@@ -29,7 +27,6 @@ export default function StatsSelector({ activity, onStatsChange }: StatsSelector
     { key: 'average_speed', label: 'Average Speed (km/h)', default: false },
     { key: 'max_speed', label: 'Max Speed (km/h)', default: false },
     { key: 'total_elevation_gain', label: 'Elevation Gain (m)', default: false },
-    { key: 'type', label: 'Activity Type', default: false },
   ];
   
   // Add optional stats if they exist in the activity
@@ -50,18 +47,13 @@ export default function StatsSelector({ activity, onStatsChange }: StatsSelector
   }
   
   const handleStatToggle = (statKey: string) => {
-    // First update the local state
+    // Create new selected stats array
     const newSelected = selectedStats.includes(statKey)
       ? selectedStats.filter(key => key !== statKey)
       : [...selectedStats, statKey];
     
-    // Update local state
-    setSelectedStats(newSelected);
-    
-    // Use setTimeout to update parent state after render is complete
-    setTimeout(() => {
-      onStatsChange(newSelected);
-    }, 0);
+    // Only update parent state (we no longer have local state)
+    onStatsChange(newSelected);
   };
   
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { StravaActivity } from '@/app/lib/strava';
 import StatsSelector from './StatsSelector';
 
@@ -33,6 +33,9 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     dragOffsetX: 0,
     dragOffsetY: 0
   });
+  
+  // For vertical crop position (0-100%, default is center at 50%)
+  const [verticalCropPosition, setVerticalCropPosition] = useState<number>(50);
   const [position, setPosition] = useState<Position>('top-left');
   const [backgroundColor, setBackgroundColor] = useState('rgba(0, 0, 0, 0.5)');
   const [textColor, setTextColor] = useState('#ffffff');
@@ -44,14 +47,28 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
   ]);
   
   const handleStatsChange = (stats: string[]) => {
-    // Use the functional form to ensure we're working with the latest state
-    setSelectedStats(() => stats);
-    
-    // Force a re-render of the canvas with the new stats
-    if (canvasRef.current && activity) {
-      setTimeout(() => renderCanvas(), 0);
-    }
+    // Just update the state - the useEffect will handle rendering
+    setSelectedStats([...stats]);
   };
+  
+  // This useEffect specifically watches for changes to selectedStats
+  useEffect(() => {
+    if (canvasRef.current && activity && selectedImage) {
+      // Use requestAnimationFrame to ensure DOM updates are processed first
+      requestAnimationFrame(() => {
+        renderCanvas();
+      });
+    }
+  }, [selectedStats, activity, selectedImage]);
+  
+  // This useEffect watches for changes to verticalCropPosition
+  useEffect(() => {
+    if (canvasRef.current && activity && selectedImage && aspectRatio !== 'original') {
+      requestAnimationFrame(() => {
+        renderCanvas();
+      });
+    }
+  }, [verticalCropPosition, aspectRatio, activity, selectedImage]);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -106,6 +123,9 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
   
   const handleAspectRatioChange = (ratio: AspectRatio) => {
     setAspectRatio(ratio);
+    
+    // Reset vertical crop position to center when changing aspect ratio
+    setVerticalCropPosition(50);
   };
   
   const handlePositionChange = (newPosition: Position) => {
@@ -167,11 +187,45 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       return;
     }
     
+    // Define available stats in the order they should appear
+    const availableStats = [
+      { key: 'name', label: 'Activity Name' },
+      { key: 'type', label: 'Activity Type' },
+      { key: 'start_date', label: 'Date' },
+      { key: 'distance', label: 'Distance (km)' },
+      { key: 'moving_time', label: 'Moving Time (min)' },
+      { key: 'elapsed_time', label: 'Elapsed Time (min)' },
+      { key: 'average_pace', label: 'Average Pace (min/km)' },
+      { key: 'max_pace', label: 'Max Pace (min/km)' },
+      { key: 'average_speed', label: 'Average Speed (km/h)' },
+      { key: 'max_speed', label: 'Max Speed (km/h)' },
+      { key: 'total_elevation_gain', label: 'Elevation Gain (m)' },
+    ];
+    
+    // Add optional stats if they exist in the activity
+    if (activity.average_heartrate) {
+      availableStats.push({ key: 'average_heartrate', label: 'Avg Heart Rate (bpm)' });
+    }
+    
+    if (activity.max_heartrate) {
+      availableStats.push({ key: 'max_heartrate', label: 'Max Heart Rate (bpm)' });
+    }
+    
+    if (activity.calories) {
+      availableStats.push({ key: 'calories', label: 'Calories' });
+    }
+    
+    if (activity.suffer_score) {
+      availableStats.push({ key: 'suffer_score', label: 'Suffer Score' });
+    }
+    
     const img = imageRef.current;
     
     // Calculate dimensions based on aspect ratio
     let width = img.width;
     let height = img.height;
+    let sourceX = 0;
+    let sourceY = 0;
     
     if (aspectRatio !== 'original') {
       const parts = aspectRatio.split(':');
@@ -181,11 +235,23 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       const currentRatio = width / height;
       
       if (currentRatio > targetRatio) {
-        // Image is wider than target, crop width
-        width = height * targetRatio;
-      } else {
-        // Image is taller than target, crop height
+        // Image is wider than target ratio, so we need to crop width
+        // In this case we'll keep full width and adjust canvas dimensions
         height = width / targetRatio;
+      } else {
+        // Image is taller than target ratio, so we need to crop height
+        // Calculate the height that needs to be cropped
+        const targetHeight = width / targetRatio;
+        
+        if (targetHeight < img.height) {
+          // Set canvas height to the target ratio height
+          height = targetHeight;
+          
+          // Calculate vertical crop based on user's verticalCropPosition (0-100%)
+          // 0% means crop from the top, 100% means crop from the bottom, 50% is centered
+          const maxOffset = img.height - targetHeight;
+          sourceY = (maxOffset * verticalCropPosition) / 100;
+        }
       }
     }
     
@@ -193,10 +259,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     canvas.width = width;
     canvas.height = height;
     
-    // Draw image with proper centering for aspect ratio crop
-    const sourceX = (img.width - width) / 2;
-    const sourceY = (img.height - height) / 2;
-    
+    // Draw the image with the calculated crop
     ctx.drawImage(
       img,
       sourceX, sourceY, width, height,
@@ -208,7 +271,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     
     // Calculate overlay height based on number of stats
     const lineHeight = fontSize + 10;
-    const padding = 30; // Increased padding for more space
+    const padding = 100; // Increased padding for more space
     const headerHeight = fontSize + 14;
     const overlayHeight = padding * 2 + headerHeight + (selectedStats.length * lineHeight);
     
@@ -228,20 +291,20 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
     // Determine labels and values for each stat
     const getStatLabel = (key: string): string => {
       switch(key) {
-        case 'start_date': return 'Date & Time';
-        case 'distance': return 'Distance';
-        case 'moving_time': return 'Time';
-        case 'elapsed_time': return 'Total Time';
-        case 'average_speed': return 'Avg Speed';
-        case 'max_speed': return 'Max Speed';
-        case 'average_pace': return 'Avg Pace';
-        case 'max_pace': return 'Max Pace';
-        case 'total_elevation_gain': return 'Elevation';
-        case 'average_heartrate': return 'Avg HR';
-        case 'max_heartrate': return 'Max HR';
-        case 'suffer_score': return 'Suffer Score';
-        case 'calories': return 'Calories';
-        case 'type': return 'Activity';
+        case 'start_date': return 'Date ';
+        case 'distance': return 'Distance ';
+        case 'moving_time': return 'Moving Time ';
+        case 'elapsed_time': return 'Total Time ';
+        case 'average_speed': return 'Avg Speed ';
+        case 'max_speed': return 'Max Speed ';
+        case 'average_pace': return 'Avg Pace ';
+        case 'max_pace': return 'Max Pace ';
+        case 'total_elevation_gain': return 'Elevation ';
+        case 'average_heartrate': return 'Avg HR ';
+        case 'max_heartrate': return 'Max HR ';
+        case 'suffer_score': return 'Suffer Score ';
+        case 'calories': return 'Calories ';
+        case 'type': return 'Activity ';
         default: return key;
       }
     };
@@ -250,7 +313,11 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       if (!activity) return '';
       
       switch(key) {
-        case 'start_date': return activity.start_date;
+        case 'start_date': {
+          const date = new Date(activity.start_date_local);
+          const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+          return formattedDate;
+        }
         case 'distance': return `${activity.distance}km`;
         case 'moving_time': return `${activity.moving_time}min`;
         case 'elapsed_time': return `${activity.elapsed_time}min`;
@@ -259,8 +326,8 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         case 'average_pace': return activity.average_pace;
         case 'max_pace': return activity.max_pace;
         case 'total_elevation_gain': return `${activity.total_elevation_gain}m`;
-        case 'average_heartrate': return activity.average_heartrate ? `${Math.round(activity.average_heartrate)}bpm` : '';
-        case 'max_heartrate': return activity.max_heartrate ? `${Math.round(activity.max_heartrate)}bpm` : '';
+        case 'average_heartrate': return activity.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : '';
+        case 'max_heartrate': return activity.max_heartrate ? `${Math.round(activity.max_heartrate)} bpm` : '';
         case 'suffer_score': return activity.suffer_score ? `${activity.suffer_score}` : '';
         case 'calories': return activity.calories ? `${activity.calories}` : '';
         case 'type': return activity.type;
@@ -323,22 +390,22 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       ctx.font = `bold ${fontSize + 4}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       ctx.fillText(activity.name, statsPosition.x + padding, yPos);
       
-      // Add Strava-like orange underline for title
-      ctx.strokeStyle = '#FC4C02'; // Strava orange
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(statsPosition.x + padding, yPos + 8);
-      ctx.lineTo(statsPosition.x + statsPosition.width - padding, yPos + 8);
-      ctx.stroke();
-      
       yPos += lineHeight + 15; // More space after title
     }
     
     // Create a table-like layout for stats
     const labelWidth = 150; // Width reserved for the label column
     
-    // Skip 'name' as it's handled separately
-    selectedStats.filter(stat => stat !== 'name').forEach(stat => {
+    // Get the ordered list of stats (all available stats in their original order)
+    const orderedStats = availableStats.map(stat => stat.key);
+    
+    // Filter to only include selected stats, preserving the original order
+    const orderedSelectedStats = orderedStats
+    .filter(stat => selectedStats.includes(stat))
+    .filter(stat => stat !== 'name'); // Exclude name from the list
+    
+    // Draw each stat in the preserved order
+    orderedSelectedStats.forEach(stat => {
       const label = getStatLabel(stat);
       const value = getStatValue(stat);
       
@@ -351,13 +418,6 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
       ctx.textAlign = 'right';
       ctx.font = `bold ${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       ctx.fillText(value, statsPosition.x + statsPosition.width - padding, yPos);
-      
-      // Draw subtle separator line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.beginPath();
-      ctx.moveTo(statsPosition.x + padding, yPos + 10);
-      ctx.lineTo(statsPosition.x + statsPosition.width - padding, yPos + 10);
-      ctx.stroke();
       
       yPos += lineHeight;
     });
@@ -538,6 +598,28 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         </button>
                       ))}
                     </div>
+                    
+                    {aspectRatio !== 'original' && (
+                      <div className="space-y-2 mt-3">
+                        <label className="block text-sm">Vertical Position</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={verticalCropPosition}
+                          onChange={(e) => {
+                            setVerticalCropPosition(parseInt(e.target.value));
+                            renderCanvas();
+                          }}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Top</span>
+                          <span>Center</span>
+                          <span>Bottom</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="space-y-3">
@@ -614,13 +696,13 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                         className="w-full"
                       />
                     </div>
-                    {/* Stats width is now calculated automatically based on text */}
                   </div>
                   
                   <div className="space-y-3">
                     <h3 className="font-bold border-l-4 border-[#FC4C02] pl-2">Stats to Display</h3>
                     <StatsSelector 
-                      activity={activity} 
+                      activity={activity}
+                      selectedStats={selectedStats}
                       onStatsChange={handleStatsChange} 
                     />
                   </div>
