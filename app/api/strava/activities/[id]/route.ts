@@ -3,9 +3,9 @@ import { getActivity, refreshToken } from '@/app/lib/strava';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const activityId = parseInt(params.id);
+  const activityId = parseInt(context.params.id);
   
   if (isNaN(activityId)) {
     return NextResponse.json({ error: 'Invalid activity ID' }, { status: 400 });
