@@ -520,8 +520,8 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
         {/* Left side: Canvas and Image Upload */}
         <div className="w-full md:w-2/3 space-y-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-white">Upload Image</label>
-            <input
+            <label className="block text-xl font-medium text-white">Upload Image</label>
+            {activity ? <input
               type="file"
               accept="image/*"
               onChange={handleImageUpload}
@@ -531,11 +531,12 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
               file:text-sm file:font-semibold
               file:bg-violet-50 file:text-violet-700
               hover:file:bg-violet-100"
-            />
+            /> :
+              <label className="block text-sm font-medium text-gray-500">Please select an activity to continue.</label>}
             {error && <div className="text-red-500 text-sm">{error}</div>}
           </div>
 
-          <div className="border border-gray-300 rounded-lg relative">
+          {activity && <div className="border border-gray-300 rounded-lg relative">
             <canvas
               ref={canvasRef}
               onMouseDown={startDragging}
@@ -551,7 +552,7 @@ export default function ImageEditor({ activity }: ImageEditorProps) {
                 Upload an image to start editing
               </div>
             )}
-          </div>
+          </div>}
 
           {selectedImage && activity && (
             <button
