@@ -320,7 +320,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     }
 
     // Calculate overlay height adding the title lines
-    const overlayHeight = padding * 2 + headerHeight +
+    const overlayHeight = padding + headerHeight +
       ((selectedStats.length - (selectedStats.includes('name') ? 1 : 0)) * lineHeight) +
       (titleLines * lineHeight);
 
