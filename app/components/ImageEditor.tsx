@@ -3,11 +3,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { StravaActivity } from '@/app/lib/strava';
 import StatsSelector from './StatsSelector';
+import { formattedDate, formattedMovingTime } from '../utils/formatters';
 
 interface ImageEditorProps {
   activity: StravaActivity | null;
   onImageEditorRef?: (ref: { loadImageFromUrl: (url: string) => void }) => void;
 }
+
+const PADDING = 20;
 
 type AspectRatio = '16:9' | '4:3' | '1:1' | 'original';
 type Position = 'top-center' | 'top-left' | 'top-right' | 'bottom-center' | 'bottom-left' | 'bottom-right' | 'center';
@@ -56,10 +59,42 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const uploadImageRef = useRef<HTMLDivElement | null>(null);
+  // Added file input ref to clear its value when activity changes
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (activity && uploadImageRef.current) {
       uploadImageRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activity]);
+
+  useEffect(() => {
+    if (activity) {
+      let defaultStats: string[] = [];
+      switch (activity.type.toLowerCase()) {
+        case 'run':
+        case 'virtualrun':
+          defaultStats = ['name', 'start_date', 'distance', 'moving_time', 'average_pace', 'average_heartrate', 'calories'];
+          break;
+        case 'trailrun':
+          defaultStats = ['name', 'start_date', 'distance', 'moving_time', 'average_pace', 'average_heartrate', 'total_elevation_gain', 'calories'];
+          break;
+        case 'walk':
+        case 'hike':
+          defaultStats = ['name', 'start_date', 'distance', 'moving_time', 'average_pace', 'average_heartrate', 'total_elevation_gain', 'calories'];
+          break;
+        case 'ride':
+        case 'gravelride':
+        case 'mountainbikeride':
+        case 'virtualride':
+        case 'ebikeride':
+        case 'emountainbikeride':
+          defaultStats = ['name', 'start_date', 'distance', 'moving_time', 'average_speed', 'average_heartrate', 'total_elevation_gain', 'calories'];
+          break;
+        default:
+          defaultStats = ['name', 'start_date', 'moving_time', 'average_heartrate', 'calories'];
+      }
+      setSelectedStats(defaultStats);
     }
   }, [activity]);
 
@@ -155,14 +190,21 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       0, 0, width, height
     );
 
-    // Calculate fontSize based on canvas height
-    const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Calculate fontSize based on canvas height, with a minimum size for readability
+    // For high-resolution images, use a square root scaling to avoid too small text
+    const baseSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Set minimum font size (never smaller than what would be used on a 600px tall image)
+    const minFontSize = Math.round(600 * (fontSizePercent / 100));
+    const fontSize = Math.max(minFontSize, baseSize);
 
-    // Calculate overlay height based on number of stats
-    const lineHeight = fontSize + 10;
-    const padding = 30; // Increased padding for more space
-    const headerHeight = fontSize + 14;
-    const overlayHeight = padding * 2 + headerHeight + (selectedStats.length * lineHeight);
+    // Calculate all measurements proportionally to font size
+    const paddingScale = fontSize / minFontSize;
+    const padding = Math.round(PADDING * paddingScale);
+    // Scale line height and header height proportionally
+    const baseLineHeight = 10;
+    const baseHeaderExtra = 14;
+    const lineHeight = fontSize + Math.round(baseLineHeight * paddingScale);
+    const headerHeight = fontSize + Math.round(baseHeaderExtra * paddingScale);
 
     // Calculate the width needed for stats based on the text
     let maxTextWidth = 0;
@@ -202,14 +244,10 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       if (!activity) return '';
 
       switch (key) {
-        case 'start_date': {
-          const date = new Date(activity.start_date_local);
-          const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-          return formattedDate;
-        }
+        case 'start_date': return formattedDate(activity.start_date_local);
         case 'distance': return `${activity.distance}km`;
-        case 'moving_time': return `${activity.moving_time}min`;
-        case 'elapsed_time': return `${activity.elapsed_time}min`;
+        case 'moving_time': return formattedMovingTime(activity.moving_time);
+        case 'elapsed_time': return formattedMovingTime(activity.elapsed_time);
         case 'average_speed': return `${activity.average_speed}km/h`;
         case 'max_speed': return `${activity.max_speed}km/h`;
         case 'average_pace': return activity.average_pace;
@@ -233,8 +271,13 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       maxTextWidth = Math.max(maxTextWidth, textWidth);
     });
 
-    // Add some extra padding
-    maxTextWidth += 20;
+    // Add some extra padding for better appearance
+    maxTextWidth += PADDING * 2;  // Add extra padding to both sides
+
+    // Ensure width doesn't exceed canvas width
+    // Apply double padding to ensure there's padding on both sides
+    const maxAllowedWidth = canvas.width - (padding * 2);
+    maxTextWidth = Math.min(maxTextWidth, maxAllowedWidth);
 
     // Only update width when rendering initially or when there's a significant change
     // to prevent render loops
@@ -246,23 +289,64 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       }));
     }
 
+    // Calculate how many lines the title might take up
+    let titleLines = 1;
+    if (selectedStats.includes('name')) {
+      // Calculate available width for the text
+      const availableWidth = maxTextWidth - (padding * 2);
+
+      // Estimate title lines using text measurement
+      ctx.font = `bold ${fontSize + 4}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
+      const words = activity.name.split(' ');
+      let line = '';
+      const tempLines = [];
+
+      // Build lines by adding words until we exceed maxWidth
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line + (line ? ' ' : '') + words[i];
+        const metrics = ctx.measureText(testLine);
+
+        if (metrics.width > availableWidth && i > 0) {
+          tempLines.push(line);
+          line = words[i];
+        } else {
+          line = testLine;
+        }
+      }
+
+      // Add the last line
+      if (line) {
+        tempLines.push(line);
+      }
+
+      titleLines = tempLines.length;
+    }
+
+    // Calculate overlay height adding the title lines
+    const overlayHeight = padding * 2 + headerHeight +
+      ((selectedStats.length - (selectedStats.includes('name') ? 1 : 0)) * lineHeight) +
+      (titleLines * lineHeight);
+
     // Draw stats overlay with optional rounded corners
     ctx.fillStyle = backgroundColor;
+
+    // Make sure overlay width is properly constrained
+    const finalWidth = Math.min(statsPosition.width, canvas.width - (statsPosition.x + padding));
 
     if (statsPosition.borderRadius > 0) {
       // Draw rounded rectangle
       const radius = Math.min(
         statsPosition.borderRadius,
-        statsPosition.width / 2,
+        finalWidth / 2,
         overlayHeight / 2
       );
 
       ctx.beginPath();
       ctx.moveTo(statsPosition.x + radius, statsPosition.y);
-      ctx.lineTo(statsPosition.x + statsPosition.width - radius, statsPosition.y);
-      ctx.quadraticCurveTo(statsPosition.x + statsPosition.width, statsPosition.y, statsPosition.x + statsPosition.width, statsPosition.y + radius);
-      ctx.lineTo(statsPosition.x + statsPosition.width, statsPosition.y + overlayHeight - radius);
-      ctx.quadraticCurveTo(statsPosition.x + statsPosition.width, statsPosition.y + overlayHeight, statsPosition.x + statsPosition.width - radius, statsPosition.y + overlayHeight);
+      ctx.lineTo(statsPosition.x + finalWidth - radius, statsPosition.y);
+      ctx.quadraticCurveTo(statsPosition.x + finalWidth, statsPosition.y, statsPosition.x + finalWidth, statsPosition.y + radius);
+      ctx.lineTo(statsPosition.x + finalWidth, statsPosition.y + overlayHeight - radius);
+      ctx.quadraticCurveTo(statsPosition.x + finalWidth, statsPosition.y + overlayHeight, statsPosition.x + finalWidth - radius, statsPosition.y + overlayHeight);
       ctx.lineTo(statsPosition.x + radius, statsPosition.y + overlayHeight);
       ctx.quadraticCurveTo(statsPosition.x, statsPosition.y + overlayHeight, statsPosition.x, statsPosition.y + overlayHeight - radius);
       ctx.lineTo(statsPosition.x, statsPosition.y + radius);
@@ -271,7 +355,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       ctx.fill();
     } else {
       // Draw regular rectangle
-      ctx.fillRect(statsPosition.x, statsPosition.y, statsPosition.width, overlayHeight);
+      ctx.fillRect(statsPosition.x, statsPosition.y, finalWidth, overlayHeight);
     }
 
     // Add stats text
@@ -282,9 +366,43 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     if (selectedStats.includes('name')) {
       ctx.textAlign = 'left';
       ctx.font = `bold ${fontSize + 4}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
-      ctx.fillText(activity.name, statsPosition.x + padding, yPos);
 
-      yPos += lineHeight + 15; // More space after title
+      // Calculate available width for the text
+      const maxWidth = statsPosition.width - (padding * 2.5);
+
+      // Split activity name into multiple lines if needed
+      const words = activity.name.split(' ');
+      let line = '';
+      const lines = [];
+
+      // Build lines by adding words until we exceed maxWidth
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line + (line ? ' ' : '') + words[i];
+        const metrics = ctx.measureText(testLine);
+
+        if (metrics.width > maxWidth && i > 0) {
+          // If adding this word exceeds width, add current line to lines array
+          lines.push(line);
+          line = words[i];
+        } else {
+          line = testLine;
+        }
+      }
+
+      // Add the last line
+      if (line) {
+        lines.push(line);
+      }
+
+      // Draw each line of the title
+      let titleYPos = yPos;
+      lines.forEach(lineText => {
+        ctx.fillText(lineText, statsPosition.x + padding, titleYPos);
+        titleYPos += lineHeight;
+      });
+
+      // Adjust yPos based on how many lines we have (first line already counted)
+      yPos += lineHeight * (lines.length - 1) + lineHeight + 15; // More space after title
     }
 
     // Get the ordered list of stats (all available stats in their original order)
@@ -305,10 +423,11 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       ctx.font = `${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       ctx.fillText(label, statsPosition.x + padding, yPos);
 
-      // Draw value (right-aligned)
+      // Draw value (right-aligned with proper padding)
       ctx.textAlign = 'right';
       ctx.font = `bold ${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
-      ctx.fillText(value, statsPosition.x + statsPosition.width - padding, yPos);
+      // Use finalWidth instead of statsPosition.width to ensure proper right-side padding
+      ctx.fillText(value, statsPosition.x + finalWidth - (padding * 1.5), yPos);
 
       yPos += lineHeight;
     });
@@ -322,6 +441,15 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
   // Reset selectedImage when activity changes
   useEffect(() => {
     setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
   }, [activity]);
 
 
@@ -331,7 +459,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       console.error("loadImageFromUrl called with undefined or empty URL");
       return;
     }
-    
+
     // Create a new image and load it
     const img = new Image();
 
@@ -432,42 +560,66 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     if (!canvasRef.current || !imageRef.current) return;
 
     const canvas = canvasRef.current;
-    const padding = 30; // Keep padding consistent
 
-    // Calculate fontSize based on canvas height
-    const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Calculate fontSize based on canvas height, with a minimum size for readability
+    const baseSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Set minimum font size (never smaller than what would be used on a 600px tall image)
+    const minFontSize = Math.round(600 * (fontSizePercent / 100));
+    const fontSize = Math.max(minFontSize, baseSize);
 
-    // Calculate the minimum height for stats display
-    const lineHeight = fontSize + 10;
-    const headerHeight = fontSize + 14;
+    // Scale padding proportionally to font size
+    const paddingScale = fontSize / minFontSize;
+    const padding = Math.round(PADDING * paddingScale);
+
+    // Scale line height and header height proportionally
+    const baseLineHeight = 10;
+    const baseHeaderExtra = 14;
+    const lineHeight = fontSize + Math.round(baseLineHeight * paddingScale);
+    const headerHeight = fontSize + Math.round(baseHeaderExtra * paddingScale);
     const numStats = selectedStats.length;
     const minHeight = padding * 2 + headerHeight + (numStats * lineHeight);
 
-    // Get the current width
-    const statsWidth = statsPosition.width;
+    // Calculate actual stats width to use (capped by canvas width if needed)
+    const actualStatsWidth = Math.min(statsPosition.width, canvas.width - padding * 2);
 
     // Set position based on the selection
     switch (newPosition) {
       case 'top-center':
-        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: padding }));
+        setStatsPosition(prev => ({ ...prev, x: Math.max(padding, (canvas.width - actualStatsWidth) / 2), y: padding }));
         break;
       case 'top-left':
         setStatsPosition(prev => ({ ...prev, x: padding, y: padding }));
         break;
       case 'top-right':
-        setStatsPosition(prev => ({ ...prev, x: canvas.width - statsWidth - padding, y: padding }));
+        setStatsPosition(prev => ({ ...prev, x: Math.max(padding, canvas.width - actualStatsWidth - padding), y: padding }));
         break;
       case 'center':
-        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: (canvas.height - minHeight) / 2 }));
+        setStatsPosition(prev => ({
+          ...prev,
+          x: Math.max(padding, (canvas.width - actualStatsWidth) / 2),
+          y: Math.max(padding, (canvas.height - minHeight) / 2)
+        }));
         break;
       case 'bottom-left':
-        setStatsPosition(prev => ({ ...prev, x: padding, y: canvas.height - minHeight - padding }));
+        setStatsPosition(prev => ({
+          ...prev,
+          x: padding,
+          y: Math.max(padding, canvas.height - minHeight - padding)
+        }));
         break;
       case 'bottom-right':
-        setStatsPosition(prev => ({ ...prev, x: canvas.width - statsWidth - padding, y: canvas.height - minHeight - padding }));
+        setStatsPosition(prev => ({
+          ...prev,
+          x: Math.max(padding, canvas.width - actualStatsWidth - padding),
+          y: Math.max(padding, canvas.height - minHeight - padding)
+        }));
         break;
       case 'bottom-center':
-        setStatsPosition(prev => ({ ...prev, x: (canvas.width - statsWidth) / 2, y: canvas.height - minHeight - padding / 2 }));
+        setStatsPosition(prev => ({
+          ...prev,
+          x: Math.max(padding, (canvas.width - actualStatsWidth) / 2),
+          y: Math.max(padding, canvas.height - minHeight - padding)
+        }));
         break;
     }
   };
@@ -480,13 +632,20 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Calculate fontSize based on canvas height
-    const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Calculate fontSize based on canvas height, with a minimum size for readability
+    const baseSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Set minimum font size (never smaller than what would be used on a 600px tall image)
+    const minFontSize = Math.round(600 * (fontSizePercent / 100));
+    const fontSize = Math.max(minFontSize, baseSize);
 
-    // Calculate the minimum height for stats display
-    const lineHeight = fontSize + 10;
-    const padding = 30; // Keep padding consistent
-    const headerHeight = fontSize + 14;
+    // Calculate all measurements proportionally to font size
+    const paddingScale = fontSize / minFontSize;
+    const padding = Math.round(PADDING * paddingScale);
+    // Scale line height and header height proportionally
+    const baseLineHeight = 10;
+    const baseHeaderExtra = 14;
+    const lineHeight = fontSize + Math.round(baseLineHeight * paddingScale);
+    const headerHeight = fontSize + Math.round(baseHeaderExtra * paddingScale);
     const numStats = selectedStats.length;
     const minHeight = padding * 2 + headerHeight + (numStats * lineHeight);
 
@@ -530,23 +689,33 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Calculate fontSize based on canvas height
-    const fontSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Calculate fontSize based on canvas height, with a minimum size for readability
+    const baseSize = Math.round(canvas.height * (fontSizePercent / 100));
+    // Set minimum font size (never smaller than what would be used on a 600px tall image)
+    const minFontSize = Math.round(600 * (fontSizePercent / 100));
+    const fontSize = Math.max(minFontSize, baseSize);
 
-    // Calculate the minimum height for stats display
-    const lineHeight = fontSize + 10;
-    const padding = 30; // Keep padding consistent
-    const headerHeight = fontSize + 14;
+    // Calculate all measurements proportionally to font size
+    const paddingScale = fontSize / minFontSize;
+    const padding = Math.round(PADDING * paddingScale);
+    // Scale line height and header height proportionally
+    const baseLineHeight = 10;
+    const baseHeaderExtra = 14;
+    const lineHeight = fontSize + Math.round(baseLineHeight * paddingScale);
+    const headerHeight = fontSize + Math.round(baseHeaderExtra * paddingScale);
     const numStats = selectedStats.length;
-    const minHeight = padding * 2 + headerHeight + (numStats * lineHeight);
+    const minHeight = padding + headerHeight + (numStats * lineHeight);
+
+    // Calculate actual stats width to use (capped by canvas width if needed)
+    const actualStatsWidth = Math.min(statsPosition.width, canvas.width - (padding * 2));
 
     // Ensure stats box stays within canvas boundaries
-    const maxX = Math.max(0, canvas.width - statsPosition.width);
-    const maxY = Math.max(0, canvas.height - minHeight);
+    const maxX = Math.max(0, canvas.width - actualStatsWidth - padding);
+    const maxY = Math.max(0, canvas.height - minHeight - padding);
 
     // Account for the initial click offset within the box
-    const newX = Math.max(0, Math.min(maxX, x - statsPosition.dragOffsetX));
-    const newY = Math.max(0, Math.min(maxY, y - statsPosition.dragOffsetY));
+    const newX = Math.max(padding, Math.min(maxX, x - statsPosition.dragOffsetX));
+    const newY = Math.max(padding, Math.min(maxY, y - statsPosition.dragOffsetY));
 
     // Use direct state update to avoid re-renders
     setStatsPosition({
@@ -574,6 +743,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
           <div className="space-y-2">
             <label className="block text-xl font-medium text-white">Upload Image</label>
             {activity ? <input
+              ref={fileInputRef} // attached file input ref
               type="file"
               accept="image/*"
               onChange={handleImageUpload}
@@ -723,7 +893,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                       <input
                         type="range"
                         min="1"
-                        max="10"
+                        max="7"
                         value={fontSizePercent}
                         onChange={(e) => setFontSizePercent(parseInt(e.target.value))}
                         className="w-full"

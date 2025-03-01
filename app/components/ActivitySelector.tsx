@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { StravaActivity } from '@/app/lib/strava';
+import Image from 'next/image';
 
 interface ActivitySelectorProps {
   onSelect: (activity: StravaActivity) => void;
@@ -171,9 +172,11 @@ export default function ActivitySelector({ onSelect, isLoggedIn, imageEditorRef 
                   }
                 }}
               >
-                <img
+                <Image
                   src={`/api/proxy/image?url=${encodeURIComponent(photo.urls[600])}`}
                   alt="Activity photo"
+                  width={600}
+                  height={400}
                   className="w-full h-auto rounded-lg"
                 />
               </div>
