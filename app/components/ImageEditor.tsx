@@ -51,6 +51,19 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
   ]);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  const [selectAllStats, setSelectAllStats] = useState(false);
+
+  const handleToggleAllStats = () => {
+    if (selectAllStats) {
+      setSelectedStats([]);
+    } else {
+      setSelectedStats([
+        'name', 'start_date', 'type', 'distance', 'moving_time', 'average_pace', 'average_heartrate', 'calories', 'total_elevation_gain', 'average_speed', 'max_speed', 'suffer_score', 'elapsed_time', 'max_pace', 'max_heartrate'
+      ]);
+    }
+    setSelectAllStats(!selectAllStats);
+  };
+
   const handleStatsChange = (stats: string[]) => {
     // Just update the state - the useEffect will handle rendering
     setSelectedStats([...stats]);
@@ -92,7 +105,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
           defaultStats = ['name', 'start_date', 'distance', 'moving_time', 'average_speed', 'average_heartrate', 'total_elevation_gain', 'calories'];
           break;
         default:
-          defaultStats = ['name', 'start_date', 'moving_time', 'average_heartrate', 'calories'];
+          defaultStats = ['name', 'type', 'start_date', 'moving_time', 'average_heartrate', 'calories'];
       }
       setSelectedStats(defaultStats);
     }
@@ -144,12 +157,6 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     }
 
     const img = imageRef.current;
-
-    // Calculate dimensions based on aspect ratio
-    const width = img.width;
-    let height = img.height;
-    const sourceX = 0;
-    let sourceY = 0;
 
     if (aspectRatio !== 'original') {
       // New cover algorithm:
@@ -431,7 +438,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
 
     // Reset text alignment for future text
     ctx.textAlign = 'left';
-  }, [selectedImage, activity, canvasRef, imageRef, aspectRatio, verticalCropPosition, fontSizePercent, selectedStats, statsPosition, backgroundColor, textColor]);
+  }, [selectedImage, activity, canvasRef, imageRef, aspectRatio, fontSizePercent, selectedStats, statsPosition, backgroundColor, textColor]);
 
 
 
@@ -915,6 +922,14 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
 
                   <div className="space-y-3">
                     <h3 className="font-bold border-l-4 border-[#FC4C02] pl-2">Stats to Display</h3>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectAllStats}
+                        onChange={handleToggleAllStats}
+                      />
+                      <label>Select All</label>
+                    </div>
                     <StatsSelector
                       activity={activity}
                       selectedStats={selectedStats}
