@@ -152,43 +152,40 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     let sourceY = 0;
 
     if (aspectRatio !== 'original') {
-      const parts = aspectRatio.split(':');
-      const w = Number(parts[0]) || 1;
-      const h = Number(parts[1]) || 1;
-      const targetRatio = w / h;
-      const currentRatio = width / height;
+      // New cover algorithm:
+      const iw = img.width, ih = img.height;
+      // Calculate target ratio from aspectRatio string, e.g. "16:9" becomes 16/9.
+      const [num, den] = aspectRatio.split(':').map(Number);
+      const targetRatio = num / den;
 
-      if (currentRatio > targetRatio) {
-        // Image is wider than target ratio, so we need to crop width
-        // In this case we'll keep full width and adjust canvas dimensions
-        height = width / targetRatio;
+      // First, try to use full width.
+      const chFromWidth = iw / targetRatio;
+      let cw, ch;
+      if (chFromWidth <= ih) {
+        cw = iw;
+        ch = chFromWidth;
       } else {
-        // Image is taller than target ratio, so we need to crop height
-        // Calculate the height that needs to be cropped
-        const targetHeight = width / targetRatio;
-
-        if (targetHeight < img.height) {
-          // Set canvas height to the target ratio height
-          height = targetHeight;
-
-          // Calculate vertical crop based on user's verticalCropPosition (0-100%)
-          // 0% means crop from the top, 100% means crop from the bottom, 50% is centered
-          const maxOffset = img.height - targetHeight;
-          sourceY = (maxOffset * verticalCropPosition) / 100;
-        }
+        // Otherwise use full height.
+        cw = ih * targetRatio;
+        ch = ih;
       }
+      canvas.width = cw;
+      canvas.height = ch;
+
+      // Compute scale factor (for cover effect)
+      const scale = Math.max(cw / iw, ch / ih);
+      const srcWidth = cw / scale;
+      const srcHeight = ch / scale;
+      const srcX = (iw - srcWidth) / 2;
+      const srcY = (ih - srcHeight) / 2;
+
+      ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, cw, ch);
+    } else {
+      // If 'original', use the image's natural dimensions.
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0, img.width, img.height);
     }
-
-    // Set canvas dimensions
-    canvas.width = width;
-    canvas.height = height;
-
-    // Draw the image with the calculated crop
-    ctx.drawImage(
-      img,
-      sourceX, sourceY, width, height,
-      0, 0, width, height
-    );
 
     // Calculate fontSize based on canvas height, with a minimum size for readability
     // For high-resolution images, use a square root scaling to avoid too small text
@@ -809,8 +806,8 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                           key={ratio}
                           onClick={() => handleAspectRatioChange(ratio)}
                           className={`px-3 py-1 text-sm rounded-full ${aspectRatio === ratio
-                            ? 'bg-[#FC4C02] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      ? 'bg-[#FC4C02] text-white'
+      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >
                           {ratio}
@@ -849,8 +846,8 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                           key={pos}
                           onClick={() => handlePositionChange(pos)}
                           className={`px-3 py-1 text-sm rounded-lg ${position === pos
-                            ? 'bg-[#FC4C02] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      ? 'bg-[#FC4C02] text-white'
+      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >
                           {pos.replace('-', ' ')}
