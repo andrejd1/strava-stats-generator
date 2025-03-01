@@ -219,19 +219,19 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     // Determine labels and values for each stat
     const getStatLabel = (key: string): string => {
       switch (key) {
-        case 'start_date': return 'Date ';
-        case 'distance': return 'Distance ';
-        case 'moving_time': return 'Moving Time ';
-        case 'elapsed_time': return 'Total Time ';
-        case 'average_speed': return 'Avg Speed ';
-        case 'max_speed': return 'Max Speed ';
-        case 'average_pace': return 'Avg Pace ';
-        case 'max_pace': return 'Max Pace ';
-        case 'total_elevation_gain': return 'Elevation ';
-        case 'average_heartrate': return 'Avg HR ';
-        case 'max_heartrate': return 'Max HR ';
-        case 'suffer_score': return 'Suffer Score ';
-        case 'calories': return 'Calories ';
+        case 'start_date': return '📆 Date ';
+        case 'distance': return '🛣️ Distance ';
+        case 'moving_time': return '⌛ Moving Time ';
+        case 'elapsed_time': return '⌛ Total Time ';
+        case 'average_speed': return '🏃 Avg Speed ';
+        case 'max_speed': return '🏃 Max Speed ';
+        case 'average_pace': return '🏃 Avg Pace ';
+        case 'max_pace': return '🏃 Max Pace ';
+        case 'total_elevation_gain': return '⛰️ Elevation ';
+        case 'average_heartrate': return '💓 Avg HR ';
+        case 'max_heartrate': return '💗 Max HR ';
+        case 'suffer_score': return '😮‍💨 Suffer Score ';
+        case 'calories': return '🔥 Calories ';
         case 'type': return 'Activity ';
         default: return key;
       }
@@ -424,7 +424,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
       ctx.textAlign = 'right';
       ctx.font = `bold ${fontSize}px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif`;
       // Use finalWidth instead of statsPosition.width to ensure proper right-side padding
-      ctx.fillText(value, statsPosition.x + finalWidth - (padding * 1.5), yPos);
+      ctx.fillText(value, statsPosition.x + finalWidth - padding, yPos);
 
       yPos += lineHeight;
     });
@@ -704,7 +704,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     const minHeight = padding + headerHeight + (numStats * lineHeight);
 
     // Calculate actual stats width to use (capped by canvas width if needed)
-    const actualStatsWidth = Math.min(statsPosition.width, canvas.width - (padding * 2));
+    const actualStatsWidth = Math.min(statsPosition.width, canvas.width - padding * 2);
 
     // Ensure stats box stays within canvas boundaries
     const maxX = Math.max(0, canvas.width - actualStatsWidth - padding);
@@ -806,8 +806,8 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                           key={ratio}
                           onClick={() => handleAspectRatioChange(ratio)}
                           className={`px-3 py-1 text-sm rounded-full ${aspectRatio === ratio
-      ? 'bg-[#FC4C02] text-white'
-      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-[#FC4C02] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >
                           {ratio}
@@ -846,8 +846,8 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                           key={pos}
                           onClick={() => handlePositionChange(pos)}
                           className={`px-3 py-1 text-sm rounded-lg ${position === pos
-      ? 'bg-[#FC4C02] text-white'
-      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-[#FC4C02] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >
                           {pos.replace('-', ' ')}
