@@ -739,6 +739,30 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
     setIsDownloading(false);
   };
 
+  const handleBackgroundOpacityChange = (value: number) => {
+    const bgColor = `rgba(0, 0, 0, ${value})`;
+    setBackgroundColor(bgColor);
+  };
+
+  const handleTextColorChange = (color: string) => {
+    setTextColor(color);
+  };
+
+  const handleFontSizeChange = (value: number) => {
+    setFontSizePercent(value);
+    setStatsPosition(prev => ({
+      ...prev,
+      hasSetWidth: false // Force recalculation of width on font size change
+    }));
+  };
+
+  const handleBorderRadiusChange = (value: number) => {
+    setStatsPosition(prev => ({
+      ...prev,
+      borderRadius: value
+    }));
+  };
+
   return (
     <div className="space-y-6" suppressHydrationWarning>
       <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
@@ -873,11 +897,8 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                         min="0"
                         max="1"
                         step="0.1"
-                        defaultValue="0.5"
-                        onChange={(e) => {
-                          const bgColor = `rgba(0, 0, 0, ${e.target.value})`;
-                          setBackgroundColor(bgColor);
-                        }}
+                        value={parseFloat(backgroundColor.match(/rgba\(0, 0, 0, ([0-9.]+)\)/)?.[1] || '0.5')}
+                        onChange={(e) => handleBackgroundOpacityChange(parseFloat(e.target.value))}
                         className="w-full"
                       />
                     </div>
@@ -886,8 +907,8 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                       <label className="block text-sm">Text Color</label>
                       <input
                         type="color"
-                        defaultValue="#ffffff"
-                        onChange={(e) => setTextColor(e.target.value)}
+                        value={textColor}
+                        onChange={(e) => handleTextColorChange(e.target.value)}
                         className="w-full h-10 cursor-pointer rounded border border-gray-300"
                       />
                     </div>
@@ -899,7 +920,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                         min="1"
                         max="7"
                         value={fontSizePercent}
-                        onChange={(e) => setFontSizePercent(parseInt(e.target.value))}
+                        onChange={(e) => handleFontSizeChange(parseInt(e.target.value))}
                         className="w-full"
                       />
                     </div>
@@ -911,10 +932,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
                         min="0"
                         max="100"
                         value={statsPosition.borderRadius}
-                        onChange={(e) => setStatsPosition(prev => ({
-                          ...prev,
-                          borderRadius: parseInt(e.target.value)
-                        }))}
+                        onChange={(e) => handleBorderRadiusChange(parseInt(e.target.value))}
                         className="w-full"
                       />
                     </div>
