@@ -52,6 +52,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
   const [isDownloading, setIsDownloading] = useState(false);
 
   const [selectAllStats, setSelectAllStats] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(true);
 
   const handleToggleAllStats = () => {
     if (selectAllStats) {
@@ -225,22 +226,42 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
 
     // Determine labels and values for each stat
     const getStatLabel = (key: string): string => {
-      switch (key) {
-        case 'start_date': return '📆 Date ';
-        case 'distance': return '🛣️ Distance ';
-        case 'moving_time': return '⌛ Moving Time ';
-        case 'elapsed_time': return '⌛ Total Time ';
-        case 'average_speed': return '🏃 Avg Speed ';
-        case 'max_speed': return '🏃 Max Speed ';
-        case 'average_pace': return '🏃 Avg Pace ';
-        case 'max_pace': return '🏃 Max Pace ';
-        case 'total_elevation_gain': return '⛰️ Elevation ';
-        case 'average_heartrate': return '💓 Avg HR ';
-        case 'max_heartrate': return '💗 Max HR ';
-        case 'suffer_score': return '😮‍💨 Suffer Score ';
-        case 'calories': return '🔥 Calories ';
-        case 'type': return 'Activity ';
-        default: return key;
+      if (showEmoji) {
+        switch (key) {
+          case 'start_date': return '📆 Date ';
+          case 'distance': return '🛣️ Distance ';
+          case 'moving_time': return '⌛ Moving Time ';
+          case 'elapsed_time': return '⌛ Total Time ';
+          case 'average_speed': return '🏃 Avg Speed ';
+          case 'max_speed': return '🏃 Max Speed ';
+          case 'average_pace': return '🏃 Avg Pace ';
+          case 'max_pace': return '🏃 Max Pace ';
+          case 'total_elevation_gain': return '⛰️ Elevation ';
+          case 'average_heartrate': return '💓 Avg HR ';
+          case 'max_heartrate': return '💗 Max HR ';
+          case 'suffer_score': return '😮‍💨 Suffer Score ';
+          case 'calories': return '🔥 Calories ';
+          case 'type': return 'Activity ';
+          default: return key;
+        }
+      } else {
+        switch (key) {
+          case 'start_date': return 'Date ';
+          case 'distance': return 'Distance ';
+          case 'moving_time': return 'Moving Time ';
+          case 'elapsed_time': return 'Total Time ';
+          case 'average_speed': return 'Avg Speed ';
+          case 'max_speed': return 'Max Speed ';
+          case 'average_pace': return 'Avg Pace ';
+          case 'max_pace': return 'Max Pace ';
+          case 'total_elevation_gain': return 'Elevation ';
+          case 'average_heartrate': return 'Avg HR ';
+          case 'max_heartrate': return 'Max HR ';
+          case 'suffer_score': return 'Suffer Score ';
+          case 'calories': return 'Calories ';
+          case 'type': return 'Activity ';
+          default: return key;
+        }
       }
     };
 
@@ -438,7 +459,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
 
     // Reset text alignment for future text
     ctx.textAlign = 'left';
-  }, [selectedImage, activity, canvasRef, imageRef, aspectRatio, fontSizePercent, selectedStats, statsPosition, backgroundColor, textColor]);
+  }, [selectedImage, activity, canvasRef, imageRef, aspectRatio, fontSizePercent, selectedStats, statsPosition, backgroundColor, textColor, showEmoji]);
 
 
 
@@ -940,11 +961,20 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
 
                   <div className="space-y-3">
                     <h3 className="font-bold border-l-4 border-[#FC4C02] pl-2">Stats to Display</h3>
-                    <div className="flex items-center space-x-2">
+
+                    <div className="flex items-center border-2 rounded-md p-2 gap-x-2">
+                      <input
+                        type="checkbox"
+                        checked={showEmoji}
+                        onChange={(e) => setShowEmoji(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      <label>Show Emoji</label>
                       <input
                         type="checkbox"
                         checked={selectAllStats}
                         onChange={handleToggleAllStats}
+                        className="h-4 w-4"
                       />
                       <label>Select All</label>
                     </div>
