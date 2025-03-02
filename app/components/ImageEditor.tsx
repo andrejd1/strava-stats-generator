@@ -810,7 +810,7 @@ export default function ImageEditor({ activity, onImageEditorRef }: ImageEditorP
               className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 w-full ${isDownloading ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={isDownloading}
             >
-              {isDownloading ? 'Downloading...' : 'Download Image'}
+              {isDownloading ? 'Downloading...' : 'Download'}
             </button>
           )}
         </div>
